@@ -34,6 +34,20 @@ FILES = {
 
 FEATURE_SETS = {
     "core": ["log10_delta_q_var", "delta_q_min_ah", "qd_change_ah", "ir_mean_ohm"],
+    "core_plus_capacity_slope": [
+        "log10_delta_q_var", "delta_q_min_ah", "qd_change_ah", "ir_mean_ohm",
+        "qd_slope_2_100_ah_per_cycle", "qd_slope_91_100_ah_per_cycle",
+    ],
+    "core_plus_delta_shape": [
+        "log10_delta_q_var", "delta_q_min_ah", "qd_change_ah", "ir_mean_ohm",
+        "delta_q_mean_ah", "delta_q_skew", "log10_abs_delta_q_min",
+    ],
+    "paper_inspired_combined": [
+        "log10_delta_q_var", "delta_q_min_ah", "qd_change_ah", "ir_mean_ohm",
+        "qd_slope_2_100_ah_per_cycle", "qd_slope_91_100_ah_per_cycle",
+        "qd_cycle_2_ah", "qd_max_minus_cycle_2_ah",
+        "delta_q_mean_ah", "delta_q_skew", "log10_abs_delta_q_min",
+    ],
     "expanded": [
         "log10_delta_q_var", "delta_q_min_ah", "delta_q_abs_area_ahv",
         "qd_change_ah", "ir_mean_ohm", "tmax_mean_c", "charge_time_mean_min",
@@ -48,6 +62,11 @@ def read_array(handle: h5py.File, ref: h5py.Reference) -> np.ndarray:
 def mean_at(summary: h5py.Group, key: str, mask: np.ndarray) -> float:
     values = np.asarray(summary[key][()], dtype=float).squeeze()[mask]
     return float(np.nanmean(values)) if np.isfinite(values).any() else np.nan
+
+
+def capacity_slope(cycle_no: np.ndarray, qd: np.ndarray, start: int, end: int) -> float:
+    mask = (cycle_no >= start) & (cycle_no <= end) & np.isfinite(qd)
+    return float(np.polyfit(cycle_no[mask], qd[mask], 1)[0]) if mask.sum() >= 2 else np.nan
 
 
 def load_batch(path: Path, batch_name: str) -> pd.DataFrame:
@@ -75,10 +94,14 @@ def load_batch(path: Path, batch_name: str) -> pd.DataFrame:
             delta = q100 - q10
             order = np.argsort(voltage)
             variance = float(np.nanvar(delta))
+            delta_mean = float(np.nanmean(delta))
+            delta_std = float(np.nanstd(delta))
+            delta_skew = float(np.nanmean(((delta - delta_mean) / delta_std) ** 3)) if delta_std > 0 else np.nan
 
             qd_initial = mean_at(summary, "QDischarge", initial)
             qd_100 = mean_at(summary, "QDischarge", around_100)
             qd_all = np.asarray(summary["QDischarge"][()], dtype=float).squeeze()
+            qd_cycle_2 = float(qd_all[cycle_no == 2][0]) if np.any(cycle_no == 2) else np.nan
             rows.append({
                 "batch": batch_name,
                 "cell_index": idx + 1,
@@ -87,8 +110,15 @@ def load_batch(path: Path, batch_name: str) -> pd.DataFrame:
                 "final_qd_ah_for_qc_only": float(qd_all[-1]),
                 "log10_delta_q_var": float(np.log10(max(variance, 1e-12))),
                 "delta_q_min_ah": float(np.nanmin(delta)),
+                "log10_abs_delta_q_min": float(np.log10(max(abs(np.nanmin(delta)), 1e-12))),
+                "delta_q_mean_ah": delta_mean,
+                "delta_q_skew": delta_skew,
                 "delta_q_abs_area_ahv": float(np.trapezoid(np.abs(delta[order]), voltage[order])),
                 "qd_change_ah": qd_100 - qd_initial,
+                "qd_slope_2_100_ah_per_cycle": capacity_slope(cycle_no, qd_all, 2, 100),
+                "qd_slope_91_100_ah_per_cycle": capacity_slope(cycle_no, qd_all, 91, 100),
+                "qd_cycle_2_ah": qd_cycle_2,
+                "qd_max_minus_cycle_2_ah": float(np.nanmax(qd_all[early]) - qd_cycle_2),
                 "ir_mean_ohm": mean_at(summary, "IR", early),
                 "tmax_mean_c": mean_at(summary, "Tmax", early),
                 "charge_time_mean_min": mean_at(summary, "chargetime", early),
@@ -204,6 +234,7 @@ def main() -> None:
 
     rows = []
     best = None
+    primary = None
     best_score = float("inf")
     for feature_set, feature_cols in FEATURE_SETS.items():
         for model_name, (estimator, grid) in candidates().items():
@@ -224,9 +255,29 @@ def main() -> None:
             if cv_mape < best_score:
                 best_score = cv_mape
                 best = (model_name, feature_set, feature_cols, search.best_estimator_, search.best_params_)
+            if model_name == "ElasticNet_log_target" and feature_set == "core":
+                primary = (model_name, feature_set, feature_cols, search.best_estimator_, search.best_params_, cv_mape)
 
     pd.DataFrame(rows).sort_values("cv_MAPE_pct").to_csv(args.output_dir / "cv_comparison.csv", index=False)
-    model_name, feature_set, feature_cols, chosen, params = best
+    if primary is None or best is None:
+        raise RuntimeError("Primary or exploratory model was not evaluated")
+    model_name, feature_set, feature_cols, chosen, params, primary_cv_mape = primary
+    exploratory_name, exploratory_set, _, _, exploratory_params = best
+
+    shift_rows = []
+    for feature in FEATURE_SETS["paper_inspired_combined"]:
+        b1_values = b1[feature].dropna()
+        b2_values = b2[feature].dropna()
+        iqr = b1_values.quantile(0.75) - b1_values.quantile(0.25)
+        shift_rows.append({
+            "feature": feature,
+            "batch1_median": b1_values.median(),
+            "batch2_median": b2_values.median(),
+            "median_shift_over_batch1_iqr": (
+                (b2_values.median() - b1_values.median()) / iqr if iqr > 0 else np.nan
+            ),
+        })
+    pd.DataFrame(shift_rows).to_csv(args.output_dir / "feature_shift_batch1_batch2.csv", index=False)
     holdout_pred = chosen.predict(holdout[feature_cols])
     holdout_predictions = holdout[["batch", "cell_index", "cycle_life"]].copy()
     holdout_predictions["predicted_cycle_life"] = np.round(holdout_pred, 1)
@@ -259,8 +310,13 @@ def main() -> None:
                      .rename("cells").reset_index().to_dict(orient="records")},
         "selection": {"model": model_name, "feature_set": feature_set,
                       "features": feature_cols, "parameters": params,
-                      "CV_MAPE_pct": round(best_score, 2),
+                      "CV_MAPE_pct": round(primary_cv_mape, 2),
                       "median_baseline_CV_MAPE_pct": round(baseline_cv, 2)},
+        "exploratory_best_batch1_cv": {
+            "model": exploratory_name, "feature_set": exploratory_set,
+            "parameters": exploratory_params, "CV_MAPE_pct": round(best_score, 2),
+            "note": "Ablation only; not selected as the primary cross-batch model",
+        },
         "batch1_holdout": metrics(holdout.cycle_life, holdout_pred),
         "batch1_holdout_median_baseline": baseline_holdout,
         "batch2_final_test": metrics(b2.cycle_life, b2_pred),
