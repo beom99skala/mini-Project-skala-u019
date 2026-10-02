@@ -2,6 +2,8 @@
 
 초기 100회 충·방전 데이터로 배터리 셀의 `cycle_life`를 예측한다. **Batch 1로 학습·검증하고 Batch 2로 최종 평가**했다. 과제 지표는 MAPE이며, Batch 3은 선택적 참고 평가다.
 
+Day 1의 EDA 그래프·해석과 모델 설계 전략은 [설계 보고서 PDF](day1/DS-MINI-Design-EDA-Model-Strategy.pdf)에 있다.
+
 ## 프로젝트 개요 및 실행
 
 - 데이터: MIT–Stanford Battery Dataset의 수업 제공 MAT 파일 (`2017-05-12_batch1.mat`, `2018-02-20_batch2.mat`, 선택적으로 `2018-04-12_batch3.mat`)
