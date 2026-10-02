@@ -46,6 +46,16 @@
     "CV_MAPE_pct": 10.34,
     "median_baseline_CV_MAPE_pct": 18.46
   },
+  "exploratory_best_batch1_cv": {
+    "model": "ElasticNet_log_target",
+    "feature_set": "paper_inspired_combined",
+    "parameters": {
+      "regressor__model__alpha": 0.1,
+      "regressor__model__l1_ratio": 0.2
+    },
+    "CV_MAPE_pct": 7.78,
+    "note": "Ablation only; not selected as the primary cross-batch model"
+  },
   "batch1_holdout": {
     "MAPE_pct": 11.83,
     "MAE_cycles": 101.59,
