@@ -1,0 +1,10 @@
+구분,MAPE (%),비고
+Train (Batch 1 CV),10.34,15 group-aware CV splits
+Valid (Batch 1 Hold-out),11.83,정책 그룹 분리
+Test (Batch 2),31.18,최종 평가
+Gap (Train-Valid),1.49,Valid - Train
+Gap (Valid-Test),19.35,Test - Valid
+Gap (Target-Test),22.08,Test - 논문 목표 9.1%
+"Test (Batch 3, optional)",12.52,원 저자 기준 품질 제외 후 탐색적 평가
+Gap (Batch2-Batch3),-18.66,Batch 3 - Batch 2
+"Gap (Target-Test, Batch 3)",3.42,Batch 3 - 논문 목표 9.1%
