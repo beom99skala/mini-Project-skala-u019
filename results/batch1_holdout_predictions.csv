@@ -1,0 +1,8 @@
+batch,cell_index,cycle_life,predicted_cycle_life,absolute_percentage_error_pct
+Batch 1,6,1074.0,919.8,14.36
+Batch 1,7,636.0,776.1,22.03
+Batch 1,8,870.0,782.0,10.11
+Batch 1,39,617.0,641.7,4.0
+Batch 1,40,625.0,665.3,6.46
+Batch 1,41,966.0,873.4,9.59
+Batch 1,42,1051.0,879.8,16.29
