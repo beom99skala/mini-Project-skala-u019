@@ -1,0 +1,7 @@
+model,feature_set,cv_MAPE_pct,cv_MAPE_fold_std_pct,best_params
+ElasticNet_log_target,core,10.34,2.17,"{""regressor__model__alpha"": 0.1, ""regressor__model__l1_ratio"": 0.2}"
+ElasticNet_log_target,expanded,10.54,2.23,"{""regressor__model__alpha"": 0.1, ""regressor__model__l1_ratio"": 0.2}"
+RandomForest,core,11.1,3.31,"{""model__max_depth"": 2, ""model__max_features"": 1.0, ""model__min_samples_leaf"": 4, ""model__n_estimators"": 300}"
+RandomForest,expanded,11.2,3.3,"{""model__max_depth"": 2, ""model__max_features"": 0.7, ""model__min_samples_leaf"": 4, ""model__n_estimators"": 300}"
+XGBoost,core,11.28,2.65,"{""model__learning_rate"": 0.1, ""model__max_depth"": 2, ""model__min_child_weight"": 5, ""model__n_estimators"": 300}"
+XGBoost,expanded,11.77,3.71,"{""model__learning_rate"": 0.03, ""model__max_depth"": 2, ""model__min_child_weight"": 5, ""model__n_estimators"": 100}"
